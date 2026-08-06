@@ -18,15 +18,33 @@ const https = require('https');
 /* Constellation under load — the live Web4 endpoints Atlas holds up.  */
 /* ------------------------------------------------------------------ */
 
+/* tier: 'web4'   — Lawrence's live constellation, held overhead.
+ * tier: 'anchor' — external permanence anchors Atlas stands on
+ *                  (Dual-Layer Digital Permanence: IETF, mirrors,
+ *                  Zenodo DOI, IPFS, OpenTimestamps, GitHub).
+ * expect: 'live'      — own site; digest change goes to the decision queue
+ *         'dynamic'   — external page expected to churn; auto-rebaselined
+ *         'immutable' — archival object; digest change = violation      */
+
 const CONSTELLATION = [
-  { id: 'remweb4',      host: 'www.remweb4.org',                                    path: '/',         label: 'REM Protocol (remweb4.org)' },
-  { id: 'sentinel',     host: 'www.remweb4.org',                                    path: '/sentinel', label: 'Sentinel Loop' },
-  { id: 'hdrp',         host: 'hdrp-hypercube-site-production.up.railway.app',  path: '/',         label: 'HDRP / Project Rubik\u2019s Cube' },
-  { id: 'orion',        host: 'project-orion-production.up.railway.app',        path: '/',         label: 'Project Orion' },
-  { id: 'multilarity',  host: 'multilarity-web4-production.up.railway.app',     path: '/api/state',label: 'Multilarity Instrument' },
-  { id: 'cbpi',         host: 'cbpi-web4-production.up.railway.app',            path: '/',         label: 'CBPI Reference Instrument' },
-  { id: 'subtree',      host: 'bulk-subtree-proofs-production.up.railway.app',  path: '/',         label: 'Bulk Subtree Proofs Verifier' },
-  { id: 'pegasus',      host: 'project-pegasus-demo-production.up.railway.app', path: '/',         label: 'Project Pegasus' }
+  { id: 'remweb4',      tier: 'web4', expect: 'live', host: 'www.remweb4.org',                                path: '/',         label: 'REM Protocol (remweb4.org)' },
+  { id: 'sentinel',     tier: 'web4', expect: 'live', host: 'www.remweb4.org',                                path: '/sentinel', label: 'Sentinel Loop' },
+  { id: 'hdrp',         tier: 'web4', expect: 'live', host: 'hdrp-hypercube-site-production.up.railway.app',  path: '/',         label: 'HDRP / Project Rubik\u2019s Cube' },
+  { id: 'orion',        tier: 'web4', expect: 'live', host: 'project-orion-production.up.railway.app',        path: '/',         label: 'Project Orion' },
+  { id: 'multilarity',  tier: 'web4', expect: 'live', host: 'multilarity-web4-production.up.railway.app',     path: '/api/state',label: 'Multilarity Instrument' },
+  { id: 'cbpi',         tier: 'web4', expect: 'live', host: 'cbpi-web4-production.up.railway.app',            path: '/',         label: 'CBPI Reference Instrument' },
+  { id: 'subtree',      tier: 'web4', expect: 'live', host: 'bulk-subtree-proofs-production.up.railway.app',  path: '/',         label: 'Bulk Subtree Proofs Verifier' },
+  { id: 'pegasus',      tier: 'web4', expect: 'live', host: 'project-pegasus-demo-production.up.railway.app', path: '/',         label: 'Project Pegasus' },
+
+  /* Permanence anchor bed */
+  { id: 'ietf-archive', tier: 'anchor', expect: 'immutable', host: 'www.ietf.org',                          path: '/archive/id/draft-reilly-atlas-00.txt', label: 'IETF Archive \u00b7 draft-reilly-atlas-00' },
+  { id: 'datatracker',  tier: 'anchor', expect: 'dynamic',   host: 'datatracker.ietf.org',                  path: '/doc/draft-reilly-atlas/',              label: 'IETF Datatracker' },
+  { id: 'funet',        tier: 'anchor', expect: 'immutable', host: 'www.nic.funet.fi',                      path: '/mirrors/ietf.org/internet-drafts/draft-reilly-atlas-00.txt', label: 'FUNET Mirror (Finland)' },
+  { id: 'zenodo',       tier: 'anchor', expect: 'dynamic',   host: 'zenodo.org',                            path: '/records/21501410',                     label: 'Zenodo DOI Record (HDRP)' },
+  { id: 'ipfs-io',      tier: 'anchor', expect: 'immutable', host: 'ipfs.io',                               path: '/ipfs/QmT78zSuBmuS4z925WZfrqQ1qHaJ56DQaTfyMUF7F8ff5o', label: 'IPFS Gateway (ipfs.io)' },
+  { id: 'dweb-link',    tier: 'anchor', expect: 'immutable', host: 'dweb.link',                             path: '/ipfs/QmT78zSuBmuS4z925WZfrqQ1qHaJ56DQaTfyMUF7F8ff5o', label: 'IPFS Gateway (dweb.link)' },
+  { id: 'ots-calendar', tier: 'anchor', expect: 'dynamic',   host: 'alice.btc.calendar.opentimestamps.org', path: '/',                                     label: 'OpenTimestamps Calendar' },
+  { id: 'github',       tier: 'anchor', expect: 'dynamic',   host: 'github.com',                            path: '/lawrencejohnreilly-creator',           label: 'GitHub (source of record)' }
 ];
 
 /* ------------------------------------------------------------------ */
@@ -121,11 +139,11 @@ const state = {
   running: false
 };
 
-const AGENT_IDS = ['resolver', 'reachability', 'integrity', 'provenance', 'conditioning', 'drift', 'fba', 'sentinel'];
+const AGENT_IDS = ['resolver', 'reachability', 'integrity', 'anchor', 'provenance', 'conditioning', 'drift', 'fba', 'sentinel'];
 const AGENT_LABELS = {
   resolver: 'Resolver Agent', reachability: 'Reachability Agent', integrity: 'Integrity Agent',
-  provenance: 'Provenance Agent', conditioning: 'Conditioning Authority', drift: 'Drift Agent',
-  fba: 'FBA Agent', sentinel: 'Sentinel Agent'
+  anchor: 'Anchor Agent', provenance: 'Provenance Agent', conditioning: 'Conditioning Authority',
+  drift: 'Drift Agent', fba: 'FBA Agent', sentinel: 'Sentinel Agent'
 };
 for (const a of AGENT_IDS) state.agents[a] = { id: a, label: AGENT_LABELS[a], window: [], bdi: 0, status: 'idle', lastMs: 0, successRate: 1 };
 
@@ -181,15 +199,19 @@ function computeBDI(agentId) {
 /* Sentinel remediation + human oversight queue                        */
 /* ------------------------------------------------------------------ */
 
-function proposeRemediation(subject, action, detail) {
+function proposeRemediation(subject, action, detail, forcePending) {
+  const existing = state.decisions.find((x) => x.subject === subject && x.action === action && x.status === 'pending');
+  if (existing) return existing;
+  const auto = state.mode === 'autonomous' && !forcePending;
   const d = {
     id: rid('DEC'),
     at: nowIso(),
     epoch: state.epoch,
     subject, action, detail,
-    status: state.mode === 'autonomous' ? 'auto-applied' : 'pending',
-    resolvedAt: state.mode === 'autonomous' ? nowIso() : null,
-    resolvedBy: state.mode === 'autonomous' ? 'sentinel (autonomous)' : null
+    forced: !!forcePending,
+    status: auto ? 'auto-applied' : 'pending',
+    resolvedAt: auto ? nowIso() : null,
+    resolvedBy: auto ? 'sentinel (autonomous)' : null
   };
   state.decisions.push(d);
   if (state.decisions.length > MAX_DECISIONS) state.decisions.splice(0, state.decisions.length - MAX_DECISIONS);
@@ -253,7 +275,8 @@ async function runEpoch() {
       r.reachable = false; r.status = 0; r.latencyMs = 0; r.digest = null; r.err = 'unresolved';
     }
 
-    // Integrity Agent — digest vs baseline
+    // Integrity Agent — digest vs baseline, judged by what the endpoint is
+    r.tier = ep.tier; r.expect = ep.expect;
     if (r.digest) {
       const base = state.baselines[ep.id];
       if (!base) {
@@ -261,6 +284,14 @@ async function runEpoch() {
         r.integrity = 'baselined';
       } else if (base.digest === r.digest) {
         r.integrity = 'stable';
+      } else if (ep.expect === 'dynamic') {
+        // External page expected to churn: refresh the baseline quietly.
+        state.baselines[ep.id] = { digest: r.digest, setAt: nowIso() };
+        r.integrity = 'refreshed';
+      } else if (ep.expect === 'immutable') {
+        // Archival object mutated under us. This is the one thing that
+        // must never happen to a permanence anchor.
+        r.integrity = 'violated';
       } else {
         r.integrity = 'changed';
       }
@@ -274,28 +305,43 @@ async function runEpoch() {
   }));
 
   const eps = Object.values(results.endpoints);
+  const web4 = eps.filter((e) => e.tier === 'web4');
+  const anchors = eps.filter((e) => e.tier === 'anchor');
   const up = eps.filter((e) => e.reachable).length;
+  const web4Up = web4.filter((e) => e.reachable).length;
+  const anchorsUp = anchors.filter((e) => e.reachable).length;
 
-  // Record agent behaviors for the three field agents
+  // Record agent behaviors for the field agents
   const resolveOk = eps.every((e) => e.resolved);
   const resolveMs = Math.round(eps.reduce((s, e) => s + e.resolveMs, 0) / eps.length);
   recordBehavior('resolver', resolveOk, resolveMs);
 
-  const reachOk = up === eps.length;
-  const reachMs = Math.round(eps.reduce((s, e) => s + (e.latencyMs || SLA_MS), 0) / eps.length);
-  recordBehavior('reachability', up > 0, reachMs);
+  const reachOk = web4Up === web4.length;
+  const reachMs = Math.round(web4.reduce((s, e) => s + (e.latencyMs || SLA_MS), 0) / web4.length);
+  recordBehavior('reachability', web4Up > 0, reachMs);
 
   const changed = eps.filter((e) => e.integrity === 'changed');
-  recordBehavior('integrity', true, 5);
+  const violated = eps.filter((e) => e.integrity === 'violated');
+  recordBehavior('integrity', violated.length === 0, 5);
+
+  // Anchor Agent — holds the permanence anchor bed (Dual-Layer Digital Permanence)
+  const anchorOk = anchorsUp === anchors.length && violated.length === 0;
+  const anchorMs = anchors.length ? Math.round(anchors.reduce((s, e) => s + (e.latencyMs || SLA_MS), 0) / anchors.length) : 0;
+  recordBehavior('anchor', anchorOk, anchorMs);
 
   /* 5: Conditioning Authority — issue RERs against observed behavior */
   const condStart = Date.now();
   if (resolveOk) issueRER('resolver', 'R+', 'all hosts resolved', 0.2);
   else issueRER('resolver', 'P', 'resolution failure on one or more hosts', 0.6);
-  if (reachOk) issueRER('reachability', 'R+', up + '/' + eps.length + ' endpoints reachable within SLA', 0.2);
-  else issueRER('reachability', 'P', 'reachability degraded: ' + up + '/' + eps.length, Math.min(1, (eps.length - up) / eps.length));
-  if (changed.length === 0) issueRER('integrity', 'R+', 'all digests stable against baseline', 0.2);
-  else issueRER('integrity', 'P', 'content digest changed: ' + changed.map((c) => c.id).join(', '), 0.4);
+  if (reachOk) issueRER('reachability', 'R+', web4Up + '/' + web4.length + ' constellation endpoints reachable within SLA', 0.2);
+  else issueRER('reachability', 'P', 'constellation reachability degraded: ' + web4Up + '/' + web4.length, Math.min(1, (web4.length - web4Up) / web4.length));
+  if (changed.length === 0 && violated.length === 0) issueRER('integrity', 'R+', 'all digests conforming to expectation', 0.2);
+  else if (changed.length) issueRER('integrity', 'P', 'content digest changed: ' + changed.map((c) => c.id).join(', '), 0.4);
+  if (anchorsUp === anchors.length) issueRER('anchor', 'R+', anchorsUp + '/' + anchors.length + ' permanence anchors verified (IETF \u00b7 mirror \u00b7 Zenodo \u00b7 IPFS \u00b7 OTS \u00b7 GitHub)', 0.2);
+  else issueRER('anchor', 'P', 'anchor bed degraded: ' + anchors.filter((a) => !a.reachable).map((a) => a.id).join(', '), Math.min(1, (anchors.length - anchorsUp) / anchors.length));
+  for (const v of violated) {
+    issueRER('anchor', 'P', 'IMMUTABILITY VIOLATION: archival digest changed on ' + v.id, 0.9);
+  }
   recordBehavior('conditioning', true, Date.now() - condStart);
 
   /* 6: Drift Agent — BDI per agent */
@@ -306,7 +352,7 @@ async function runEpoch() {
 
   /* 7: FBA Agent — Functional Behavior Assessment on drift breach */
   const fbaStart = Date.now();
-  for (const a of ['resolver', 'reachability', 'integrity']) {
+  for (const a of ['resolver', 'reachability', 'integrity', 'anchor']) {
     if (bdis[a] > BDI_THRESHOLD) {
       const fba = {
         id: rid('FBA'), at: nowIso(), epoch: state.epoch, agent: a, bdi: bdis[a],
@@ -324,6 +370,18 @@ async function runEpoch() {
   for (const c of changed) {
     proposeRemediation(c.id, 'rebaseline', 'Integrity digest changed on ' + c.label + '; accept new content as baseline');
   }
+  for (const v of violated) {
+    const fba = {
+      id: rid('FBA'), at: nowIso(), epoch: state.epoch, agent: 'anchor', bdi: state.agents.anchor.bdi,
+      antecedent: 'archival object ' + v.id + ' (' + v.label + ') expected immutable',
+      behavior: 'content digest deviated from sealed baseline',
+      consequence: 'permanence attestation for ' + v.id + ' suspended pending operator review',
+      proposed: 'rebaseline'
+    };
+    state.fbas.push(fba);
+    if (state.fbas.length > MAX_FBA) state.fbas.splice(0, state.fbas.length - MAX_FBA);
+    proposeRemediation(v.id, 'rebaseline', 'IMMUTABILITY VIOLATION on ' + v.label + ' \u2014 accepting a new baseline for an archival object requires the operator, even in autonomous mode', true);
+  }
   recordBehavior('fba', true, Date.now() - fbaStart);
   recordBehavior('sentinel', true, 2);
 
@@ -333,7 +391,9 @@ async function runEpoch() {
     at: nowIso(),
     mode: state.mode,
     up, total: eps.length,
-    endpoints: eps.map((e) => ({ id: e.id, resolved: e.resolved, reachable: e.reachable, status: e.status, ms: e.latencyMs, integrity: e.integrity, digest: e.digest })),
+    web4Up, web4Total: web4.length,
+    anchorsUp, anchorsTotal: anchors.length,
+    endpoints: eps.map((e) => ({ id: e.id, tier: e.tier, resolved: e.resolved, reachable: e.reachable, status: e.status, ms: e.latencyMs, integrity: e.integrity, digest: e.digest })),
     bdis,
     rerHead: state.lastRerHash,
     pendingDecisions: state.decisions.filter((d) => d.status === 'pending').length,

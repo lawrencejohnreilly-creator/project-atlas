@@ -77,10 +77,11 @@
 <main>
   <section>
     <div class="shead"><h2>Constellation Under Load</h2><span class="tag" id="diagram-tag">—</span></div>
-    <svg id="diagram" viewBox="0 0 1200 300" role="img" aria-label="Load diagram of monitored Web4 endpoints"></svg>
+    <svg id="diagram" viewBox="0 0 1200 500" role="img" aria-label="Load diagram: Web4 constellation held overhead, permanence anchor bed underfoot"></svg>
     <div class="strip">
       <div class="stat"><b id="s-epoch">—</b><span>Epoch</span></div>
-      <div class="stat"><b id="s-up">—</b><span>Endpoints holding</span></div>
+      <div class="stat"><b id="s-web4">—</b><span>Constellation holding</span></div>
+      <div class="stat"><b id="s-anchors">—</b><span>Anchors verified</span></div>
       <div class="stat"><b id="s-chain">—</b><span>Chain length</span></div>
       <div class="stat"><b id="s-rer">—</b><span>RERs issued</span></div>
       <div class="stat"><b id="s-pending" class="amber">—</b><span>Pending decisions</span></div>
@@ -110,7 +111,7 @@
 </main>
 
 <footer>
-  Project Atlas holds the Web4 constellation under continuous attestation. ·
+  Project Atlas holds the Web4 constellation overhead and stands on the permanence anchor bed — IETF, mirrors, Zenodo, IPFS, OpenTimestamps, GitHub — under continuous attestation. ·
   <a href="/api/state">/api/state</a> · <a href="/api/chain/verify">/api/chain/verify</a> ·
   <a href="https://datatracker.ietf.org/doc/draft-reilly-cbpi/">draft-reilly-cbpi</a>
 </footer>
@@ -128,23 +129,44 @@ async function act(id,verb){
   refresh();
 }
 
-function drawDiagram(cons){
-  const eps=Object.values(cons); const svg=document.getElementById('diagram');
-  if(!eps.length){svg.innerHTML='';return;}
-  const W=1200,beamY=48,nodeY=210,n=eps.length,gap=W/(n+1);
-  let out='<line class="beam" x1="60" y1="'+beamY+'" x2="'+(W-60)+'" y2="'+beamY+'"></line>';
-  out+='<text x="60" y="'+(beamY-14)+'" fill="var(--amber)" font-size="12" letter-spacing="3">ATLAS BEAM — AGENT BACKBONE</text>';
+function nodeColor(e){
+  if(!e.reachable)return'var(--fail)';
+  if(e.integrity==='violated')return'var(--fail)';
+  if(e.integrity==='changed')return'var(--drift)';
+  if(e.integrity==='refreshed')return'var(--base)';
+  return'var(--ok)';
+}
+function drawNodes(out,eps,gap,nodeY,strutY1,strutBelow){
   eps.forEach((e,i)=>{
     const x=gap*(i+1);
-    const col=e.reachable?(e.integrity==='changed'?'var(--drift)':'var(--ok)'):'var(--fail)';
-    out+='<line class="strut" x1="'+x+'" y1="'+beamY+'" x2="'+x+'" y2="'+(nodeY-16)+'" stroke="'+col+'"></line>';
-    out+='<circle cx="'+x+'" cy="'+nodeY+'" r="14" fill="var(--panel2)" stroke="'+col+'" stroke-width="2" class="'+(e.reachable?'':'pulse')+'"></circle>';
-    out+='<circle cx="'+x+'" cy="'+nodeY+'" r="4" fill="'+col+'"></circle>';
-    out+='<text x="'+x+'" y="'+(nodeY+34)+'" text-anchor="middle" fill="var(--ink)" font-size="11">'+esc(e.id)+'</text>';
-    out+='<text x="'+x+'" y="'+(nodeY+50)+'" text-anchor="middle" fill="var(--dim)" font-size="10">'+(e.reachable?(e.latencyMs+' ms'):'DOWN')+'</text>';
-    out+='<text x="'+x+'" y="'+(nodeY+66)+'" text-anchor="middle" fill="'+(e.reachable?'var(--dim)':'var(--fail)')+'" font-size="10">'+esc(e.reachable?e.integrity:(e.err||e.integrity))+'</text>';
+    const col=nodeColor(e);
+    const alert=!e.reachable||e.integrity==='violated';
+    if(strutBelow) out.push('<line class="strut" x1="'+x+'" y1="'+(nodeY+16)+'" x2="'+x+'" y2="'+strutY1+'" stroke="'+col+'"></line>');
+    else out.push('<line class="strut" x1="'+x+'" y1="'+strutY1+'" x2="'+x+'" y2="'+(nodeY-16)+'" stroke="'+col+'"></line>');
+    out.push('<circle cx="'+x+'" cy="'+nodeY+'" r="14" fill="var(--panel2)" stroke="'+col+'" stroke-width="2" class="'+(alert?'pulse':'')+'"></circle>');
+    out.push('<circle cx="'+x+'" cy="'+nodeY+'" r="4" fill="'+col+'"></circle>');
+    const ty=strutBelow?[-62,-46,-30]:[34,50,66];
+    out.push('<text x="'+x+'" y="'+(nodeY+ty[0])+'" text-anchor="middle" fill="var(--ink)" font-size="11">'+esc(e.id)+'</text>');
+    out.push('<text x="'+x+'" y="'+(nodeY+ty[1])+'" text-anchor="middle" fill="var(--dim)" font-size="10">'+(e.reachable?(e.latencyMs+' ms'):'DOWN')+'</text>');
+    out.push('<text x="'+x+'" y="'+(nodeY+ty[2])+'" text-anchor="middle" fill="'+(alert?'var(--fail)':'var(--dim)')+'" font-size="10">'+esc(e.reachable?e.integrity:(e.err||e.integrity))+'</text>');
   });
-  svg.innerHTML=out;
+}
+function drawDiagram(cons){
+  const all=Object.values(cons); const svg=document.getElementById('diagram');
+  if(!all.length){svg.innerHTML='';return;}
+  const web4=all.filter(e=>e.tier==='web4'||!e.tier);
+  const anchors=all.filter(e=>e.tier==='anchor');
+  const W=1200,beamY=48,web4Y=170,anchorY=330,bedY=460;
+  const out=[];
+  out.push('<line class="beam" x1="60" y1="'+beamY+'" x2="'+(W-60)+'" y2="'+beamY+'"></line>');
+  out.push('<text x="60" y="'+(beamY-14)+'" fill="var(--amber)" font-size="12" letter-spacing="3">ATLAS BEAM — WEB4 CONSTELLATION</text>');
+  drawNodes(out,web4,W/(web4.length+1),web4Y,beamY,false);
+  if(anchors.length){
+    out.push('<line class="beam" x1="60" y1="'+bedY+'" x2="'+(W-60)+'" y2="'+bedY+'" stroke="var(--base)"></line>');
+    out.push('<text x="60" y="'+(bedY+22)+'" fill="var(--base)" font-size="12" letter-spacing="3">PERMANENCE ANCHOR BED — DUAL-LAYER DIGITAL PERMANENCE · IETF · MIRRORS · ZENODO · IPFS · OTS · GITHUB</text>');
+    drawNodes(out,anchors,W/(anchors.length+1),anchorY,bedY,true);
+  }
+  svg.innerHTML=out.join('');
 }
 
 function agentCard(a){
@@ -165,9 +187,13 @@ async function refresh(){
     const eps=Object.values(st.constellation||{});
     document.getElementById('diagram-tag').textContent='last epoch '+(st.lastEpochAt||'—');
     document.getElementById('s-epoch').textContent=st.epoch;
-    const up=eps.filter(e=>e.reachable).length;
-    const upEl=document.getElementById('s-up'); upEl.textContent=up+' / '+eps.length;
-    upEl.className=up===eps.length?'ok':'fail';
+    const web4=eps.filter(e=>e.tier==='web4'||!e.tier), anchors=eps.filter(e=>e.tier==='anchor');
+    const w4up=web4.filter(e=>e.reachable).length;
+    const anUp=anchors.filter(e=>e.reachable&&e.integrity!=='violated').length;
+    const wEl=document.getElementById('s-web4'); wEl.textContent=w4up+' / '+web4.length;
+    wEl.className=w4up===web4.length?'ok':'fail';
+    const aEl=document.getElementById('s-anchors'); aEl.textContent=anchors.length?(anUp+' / '+anchors.length):'—';
+    aEl.className=anUp===anchors.length?'base':'fail';
     document.getElementById('s-chain').textContent=st.counts.epochs;
     document.getElementById('s-rer').textContent=st.counts.rers;
     document.getElementById('s-pending').textContent=st.pendingDecisions;
