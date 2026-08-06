@@ -1,0 +1,10 @@
+{
+  "name": "project-atlas",
+  "version": "1.0.0",
+  "description": "Project Atlas - CBPI Backbone Instrument. Autonomous agents holding up the Web4 constellation under draft-reilly-cbpi-00, with human oversight.",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" },
+  "author": "Lawrence John Reilly Jr.",
+  "license": "SEE LICENSE"
+}
