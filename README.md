@@ -19,8 +19,8 @@ Permanence anchors Atlas stands on, verified by the ninth agent
 | Anchor | Expectation |
 | --- | --- |
 | IETF Archive (`draft-reilly-atlas-00.txt`) | immutable |
-| IETF Datatracker (`/doc/draft-reilly-atlas/`) | dynamic |
-| FUNET internet-drafts mirror (Finland) | immutable |
+| IETF Datatracker API (`draft-reilly-atlas`, 12s SLA) | dynamic |
+| FUNET mirror (`draft-reilly-cogsov-00.txt`, Finland) | immutable |
 | Zenodo DOI record (HDRP, 21501410) | dynamic |
 | IPFS gateway ipfs.io (well-known CID) | immutable |
 | IPFS gateway dweb.link (same CID) | immutable |
@@ -61,7 +61,7 @@ into the chain.
 ## Swapping anchors
 
 Edit the `CONSTELLATION` array at the top of `agents.js`. Each entry is
-`{ id, tier, expect, host, path, label }`. To pin your own IPFS deposits,
+`{ id, tier, expect, host, path, label, sla? }` (`sla` overrides the 6s reachability SLA in ms). To pin your own IPFS deposits,
 replace the well-known CID paths with your CIDs (content-addressed, so
 `expect: 'immutable'` is a real cryptographic check). ftp.otenet.gr is
 FTP-only and is not included in the HTTPS checker.
@@ -71,7 +71,8 @@ FTP-only and is not included in the HTTPS checker.
     node server.js
     # http://localhost:8080
 
-State is in-memory per boot (Railway ephemeral); the chain genesis restamps
+Baselines seal only on reachable responses, so a mirror that 404s until
+it syncs will baseline cleanly on first success. State is in-memory per boot (Railway ephemeral); the chain genesis restamps
 on each deploy.
 
 — Lawrence John Reilly Jr. · REM Technologies & Consulting, LLC

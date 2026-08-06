@@ -38,8 +38,8 @@ const CONSTELLATION = [
 
   /* Permanence anchor bed */
   { id: 'ietf-archive', tier: 'anchor', expect: 'immutable', host: 'www.ietf.org',                          path: '/archive/id/draft-reilly-atlas-00.txt', label: 'IETF Archive \u00b7 draft-reilly-atlas-00' },
-  { id: 'datatracker',  tier: 'anchor', expect: 'dynamic',   host: 'datatracker.ietf.org',                  path: '/doc/draft-reilly-atlas/',              label: 'IETF Datatracker' },
-  { id: 'funet',        tier: 'anchor', expect: 'immutable', host: 'www.nic.funet.fi',                      path: '/mirrors/ietf.org/internet-drafts/draft-reilly-atlas-00.txt', label: 'FUNET Mirror (Finland)' },
+  { id: 'datatracker',  tier: 'anchor', expect: 'dynamic',   host: 'datatracker.ietf.org',                  path: '/api/v1/doc/document/draft-reilly-atlas/?format=json', sla: 12000, label: 'IETF Datatracker (API)' },
+  { id: 'funet',        tier: 'anchor', expect: 'immutable', host: 'www.nic.funet.fi',                      path: '/mirrors/ietf.org/internet-drafts/draft-reilly-cogsov-00.txt', label: 'FUNET Mirror (Finland)' },
   { id: 'zenodo',       tier: 'anchor', expect: 'dynamic',   host: 'zenodo.org',                            path: '/records/21501410',                     label: 'Zenodo DOI Record (HDRP)' },
   { id: 'ipfs-io',      tier: 'anchor', expect: 'immutable', host: 'ipfs.io',                               path: '/ipfs/QmT78zSuBmuS4z925WZfrqQ1qHaJ56DQaTfyMUF7F8ff5o', label: 'IPFS Gateway (ipfs.io)' },
   { id: 'dweb-link',    tier: 'anchor', expect: 'immutable', host: 'dweb.link',                             path: '/ipfs/QmT78zSuBmuS4z925WZfrqQ1qHaJ56DQaTfyMUF7F8ff5o', label: 'IPFS Gateway (dweb.link)' },
@@ -68,11 +68,12 @@ function sha256(s) { return crypto.createHash('sha256').update(s).digest('hex');
 function nowIso() { return new Date().toISOString(); }
 function rid(prefix) { return prefix + '-' + crypto.randomBytes(4).toString('hex'); }
 
-function headRequest(host, path) {
+function headRequest(host, path, slaMs) {
+  const SLA = slaMs || SLA_MS;
   return new Promise((resolve) => {
     const started = Date.now();
     const req = https.request(
-      { host, path, method: 'GET', timeout: SLA_MS, headers: { 'user-agent': 'atlas-cbpi/1.0' } },
+      { host, path, method: 'GET', timeout: SLA, headers: { 'user-agent': 'atlas-cbpi/1.0' } },
       (res) => {
         if (res.statusCode >= 301 && res.statusCode <= 308 && res.headers.location) {
           try {
@@ -80,7 +81,7 @@ function headRequest(host, path) {
             res.resume();
             const started2 = Date.now();
             const req2 = https.request(
-              { host: loc.host, path: loc.pathname + loc.search, method: 'GET', timeout: SLA_MS, headers: { 'user-agent': 'atlas-cbpi/1.0' } },
+              { host: loc.host, path: loc.pathname + loc.search, method: 'GET', timeout: SLA, headers: { 'user-agent': 'atlas-cbpi/1.0' } },
               (res2) => {
                 const chunks2 = []; let bytes2 = 0;
                 res2.on('data', (c) => { bytes2 += c.length; if (bytes2 <= 65536) chunks2.push(c); });
@@ -93,7 +94,7 @@ function headRequest(host, path) {
                 }));
               }
             );
-            req2.on('timeout', () => { req2.destroy(); resolve({ ok: false, status: 0, ms: SLA_MS, digest: null, err: 'timeout' }); });
+            req2.on('timeout', () => { req2.destroy(); resolve({ ok: false, status: 0, ms: SLA, digest: null, err: 'timeout' }); });
             req2.on('error', (e) => resolve({ ok: false, status: 0, ms: Date.now() - started2, digest: null, err: e.code || 'error' }));
             req2.end();
             return;
@@ -112,7 +113,7 @@ function headRequest(host, path) {
         });
       }
     );
-    req.on('timeout', () => { req.destroy(); resolve({ ok: false, status: 0, ms: SLA_MS, digest: null, err: 'timeout' }); });
+    req.on('timeout', () => { req.destroy(); resolve({ ok: false, status: 0, ms: SLA, digest: null, err: 'timeout' }); });
     req.on('error', (e) => resolve({ ok: false, status: 0, ms: Date.now() - started, digest: null, err: e.code || 'error' }));
     req.end();
   });
@@ -269,15 +270,17 @@ async function runEpoch() {
 
     // Reachability Agent — live HTTPS
     if (r.resolved) {
-      const h = await headRequest(ep.host, ep.path);
+      const h = await headRequest(ep.host, ep.path, ep.sla);
       r.reachable = h.ok; r.status = h.status; r.latencyMs = h.ms; r.digest = h.digest; r.err = h.err || null;
     } else {
       r.reachable = false; r.status = 0; r.latencyMs = 0; r.digest = null; r.err = 'unresolved';
     }
 
-    // Integrity Agent — digest vs baseline, judged by what the endpoint is
+    // Integrity Agent — digest vs baseline, judged by what the endpoint is.
+    // Baselines seal ONLY on reachable responses: an error/404 body must
+    // never become an archival baseline (false violation on recovery).
     r.tier = ep.tier; r.expect = ep.expect;
-    if (r.digest) {
+    if (r.reachable && r.digest) {
       const base = state.baselines[ep.id];
       if (!base) {
         state.baselines[ep.id] = { digest: r.digest, setAt: nowIso() };
